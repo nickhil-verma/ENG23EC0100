@@ -150,4 +150,28 @@ CREATE TABLE notifications (
 );
 ```
 
- 
+# Stage 3: Scaling to 50 Lakh (5,000,000) Students
+Earlier we had 50000 students, now it is 50 Lakhs. Query:
+```sql
+SELECT * FROM notifications WHERE studentID = 1042 AND isRead = false ORDER BY createdAT ASC;
+```
+Without index-> query will scan crores of rows so DB CPU will hit 100% and server crash.
+
+#### Ways to fasten up the query:
+
+##### 1. Composit Index (Multi column Index)
+```sql
+CREATE INDEX idx_student_unread_created ON notifications(studentID, isRead, createdAT ASC);
+```
+* **How it helps**: DB don't scan whole table Directly jump to `studentID = 1042` & get unread No sorting needed in RAM.
+* **Cost**: Read cost becomes almost 0  Write cost increases a bit because index must update  Storage increases for index.
+
+##### 2. Redis Caching
+* **How it works**: Cache `student:unread_count:1042` -> count (e.g. `5`). On page load-> fetch directly from Redis. Increament on new notif-> decreament when read.
+* **Cost**: CPU drops a lot. Redis server cost will be there but it is cheaper than scaling SQL DB.
+
+##### 3. Table Partitioning
+* Partition table by `studentID` (e.g. Hash partitioning into 50 parts). DB only search partition file where 1042 exists. Easy DB maintenance.
+
+##### 4. Archiving Old rows
+* Nightly cron job moves old read notifications (>60 days) to `archived_notifications` or cold storage (S3). Keeps primary table small & fast. Cost is less as S3 is very cheap. (might be a overkill for genuine reason)
