@@ -386,3 +386,10 @@ export function useNotifications(limit = 10) {
   };
 }
 ```
+
+### screenshots
+<img width="2830" height="1260" alt="image" src="https://github.com/user-attachments/assets/4c331cbb-6e35-41d3-a02e-e56a46cd5601" />
+<img width="2862" height="1272" alt="image" src="https://github.com/user-attachments/assets/d06e8257-a869-4a3c-8393-05276c36d7ac" />
+<img width="2860" height="1266" alt="image" src="https://github.com/user-attachments/assets/8129b8fe-1f57-49de-80a3-985817a5dc73" />
+
+
