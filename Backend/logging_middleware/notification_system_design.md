@@ -122,3 +122,32 @@ WS Payload (Event: `new_notification`):
 * after that frontnd calls api in bakground every `15 seconds` to sync unread count & new list.
 
 ---
+
+
+ 
+# Stage 2: 
+## Datbase Choice and Schema
+ 
+I will go with **SQL** because:
+1. **Relations**: Each notification belongs to a student (`student_id`).
+2. **Consistancy**: marking multiple read needs strong consistancy so counts match.
+3. **Structred data**: Fields are fixed.
+4. **Faster querys**: Can index `student_id` & `is_read`.
+
+If payload is highly dynamic or very high write load we can see NoSQL, but SQL is safer.
+
+#### SQL Schema:
+```sql
+CREATE TABLE notifications (
+    id VARCHAR(50) PRIMARY KEY,
+    student_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    action_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+ 
