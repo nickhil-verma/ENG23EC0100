@@ -150,7 +150,8 @@ CREATE TABLE notifications (
 );
 ```
 
-# Stage 3: Scaling to 50 Lakh (5,000,000) Students
+# Stage 3: 
+## Scaling to 50 Lakh (5,000,000) Students
 Earlier we had 50000 students, now it is 50 Lakhs. Query:
 ```sql
 SELECT * FROM notifications WHERE studentID = 1042 AND isRead = false ORDER BY createdAT ASC;
@@ -175,3 +176,93 @@ CREATE INDEX idx_student_unread_created ON notifications(studentID, isRead, crea
 
 ##### 4. Archiving Old rows
 * Nightly cron job moves old read notifications (>60 days) to `archived_notifications` or cold storage (S3). Keeps primary table small & fast. Cost is less as S3 is very cheap. (might be a overkill for genuine reason)
+
+
+# Stage 4 
+## the notifications are being fetched on each page load for every student and DB is getting overwhelmed 
+how can i improve the performance 
+
+If notifcations are fetched on every page load, it will crash DB. We can improve peformance using these easy ways:
+
+##### 1. Frontend Caching (React Query / SWR / Session Storage)
+* Don't call API on every page change. Use React Query / Context to cache notifcations list.
+- Or save unread count in `sessionStorge`. When student navigate pages, load count from sessionStorge instead of calling API.
++ Only refresh if user manualy clicks refresh or every 5 mins.
+
+##### 2. Backend Redis Cache (TTL based)
+* Cache the `GET /notifications` response in Redis for e.g. - TTL of 2-3 minutes.
+- When student load page -> check Redis first. If cache is there return it. This saves DB from hitting directly.
+* Cache invlidation: Delete Redis key only when new notifcation is sent to that student or they mark read.
+
+##### 3. DB Read Replicas
+* Setup 1 primary DB for writes and 1-2 Read Replicas.
+- Route all `GET /notifications` calls to Read Replicas. This keeps main DB free.
+
+##### 4. Lazy Loading / Pagination
+* On page load, only fetch count of unread (`GET /unread-count`) which is very fast query.
++ Only load full notification list when student clicks on bell icon. Don't fetch full list on dashboard load.
+ 
+
+# stage 5 
+## it is placement season and HR clicks on notify all 50000 students should get in app notification
+
+and this is the function which is given:
+```python
+function notify_all(student_ids: array,message: string):
+    for student_id in student_ids:
+    send_email(student_id,message)
+    save_to_db(student_id,message)
+    push_to_app(student_id,message)
+```
+
+what shortcoming is in this function and log indicate that it failed for 200 student midway, how can i design this reliable and fast? should process of saving mail to DB be there? give correct pseudo code now.
+
+### Shortcomings in above function:
+1. **Sync Loop**: It runs one by one. Sending 50k emails & pushes will take hours, API request will timeout and crash.
+- **No error handling**: If it fail at student 20000, loop stops. Half students get it, half don't. We don't know who got it.
++ **DB overload**: doing 50k separate insert querys inside loop will overwhelm DB.
+* **Network blocking**: doing SMTP email calls inside loop is very bad practice.
+
+### Should we save mail/notification to DB?
+Yes, but don't do it inside the sync loop. We must save it to show in the in-app inbox later. We should do **bulk insert** (insert 1000 rows at once) or do it in background worker.
+
+### How to design it reliable & fast?
+- **Job Queues (BullMQ / RabbitMQ)**: HR click button -> immediately push jobs to queue and return `200 OK` (takes < 100ms).
+* **Chunking**: Split 50k students into batches of 1000.
++ **Background Workers**: Multiple workers run in parallel, pick batches, and send email/push.
+- **Retries**: If one email fails, retry only that one, don't stop the whole loop.
+
+### optimised Pseudo Code:
+
+```python
+# API Handler (runs instantly)
+function notify_all_api(student_ids: array, message: string):
+    campaign_id = create_campaign_in_db(message)
+    
+    # 1. Bulk inserting the  pending notification in DB (batch of 1000)
+    bulk_insert_pending_notifs(campaign_id, student_ids, message)
+    
+    # 2. Pushing batches to Queue (Redis/RabbitMQ)
+    student_batches = split_into_batches(student_ids, 1000)
+    for batch in student_batches:
+        push_to_queue("send_notif_batch", {
+            "campaign_id": campaign_id,
+            "student_ids": batch,
+            "message": message
+        })
+    return "Notification process started"
+
+# Background Worker (processes in background)
+function worker_process_batch(campaign_id, student_ids, message):
+    for student_id in student_ids:
+        try:
+            # call push & email async
+            send_email_async(student_id, message)
+            push_to_app_async(student_id, message)
+            
+            # update status in DB
+            update_status_success(campaign_id, student_id)
+        except Exception as err:
+            log_error(student_id, err)
+            push_to_retry_queue(campaign_id, student_id, message)
+```
