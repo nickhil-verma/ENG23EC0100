@@ -393,3 +393,47 @@ export function useNotifications(limit = 10) {
 <img width="2860" height="1266" alt="image" src="https://github.com/user-attachments/assets/8129b8fe-1f57-49de-80a3-985817a5dc73" />
 
 
+
+
+# Stage 7:
+## Production-Ready Frontend Integration and Logging Middleware
+
+In this stage, we are taking over the frontend application. We need to implement a production-grade system with the following requirements:
+1. **Logging Middleware**: Integrate logging middleware at suitable points in the frontend call stack (API calls, state transitions, storage syncs, error handlers).
+2. **Two Pages/Views**:
+   - **All Notifications Page**: Paginated view of all notifications from the backend, supporting page-by-page fetching.
+   - **Priority Notifications Page**: Shows only the top `n` unread notifications, sorted by priority (**Placement > Result > Event**) and filtered by notification type.
+3. **Read vs Unread Distinguishing**: Use a clear UI distinction (e.g. bold titles, indicator badges, or background color highlights) to separate new notifications from already viewed ones.
+4. **API Integration**: Use the expanded query parameters (`limit`, `page`, `notification_type`) on the `/notifications` endpoint.
+5. **Port Configuration**: Force the React app to run exclusively on `http://localhost:3000`.
+6. **MUI Styling**: Use only Material UI for styling (clean, premium feel, focusing on UX, avoiding page clutter).
+
+### Logging Middleware Design
+
+We can build a simple custom logger utility to log all critical events like page loads, API fetches, cache hits/misses, state transitions, and error events.
+
+##### Example Logger Utility:
+```javascript
+const logger = {
+  info: (context, message, data = {}) => {
+    console.log(`[INFO] [${context}] [${new Date().toISOString()}]: ${message}`, data);
+  },
+  error: (context, message, error = {}) => {
+    console.error(`[ERROR] [${context}] [${new Date().toISOString()}]: ${message}`, error);
+  }
+};
+```
+
+### Implementing Page & API Query Params
+
+With the new API query parameters:
+* `GET /notifications?limit=10&page=1&notification_type=Placement`
+* We can dynamically build the URL depending on the active page and filter.
+
+### React Routing & UI Pages
+
+We will create two main routes/views:
+1. `/` or `/notifications` (All Notifications Page with standard pagination)
+2. `/priority` (Priority Notifications Page with customizable limit `n` and type filtering)
+
+We will use simple UI elements to highlight unread items (e.g., a left accent border or a subtle dot marker).
